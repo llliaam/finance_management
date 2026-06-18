@@ -268,4 +268,121 @@ Alpine.data('assetsPage', () => ({
     },
 }));
 
+// ─── Financial Reports page component ────────────────────────────────────────
+Alpine.data('reportsPage', () => ({
+
+    // ── UI state ──────────────────────────────────────────────────────────────
+    reportType:   'cashflow',    // 'cashflow' | 'recap'
+    period:       'this_month',  // 'this_month' | 'last_month' | 'this_quarter' | 'custom'
+    customFrom:   '',
+    customTo:     '',
+    showToast:    false,
+    toastMessage: '',
+
+    // ── Sample data ───────────────────────────────────────────────────────────
+    allTransactions: [
+        { id: 1, date: '2026-06-18', description: 'Client payment PT Maju Jaya',     category: 'Other',              type: 'in',  amount: 15000000, notes: 'Invoice #INV-001' },
+        { id: 2, date: '2026-06-17', description: 'Monthly office supplies',           category: 'Operating Expenses', type: 'out', amount:   350000, notes: '' },
+        { id: 3, date: '2026-06-16', description: 'Steel bar raw material purchase',  category: 'Raw Materials',      type: 'out', amount:  8750000, notes: '50 kg @ Rp 175,000' },
+        { id: 4, date: '2026-06-15', description: 'Consulting service revenue',        category: 'Other',              type: 'in',  amount: 25000000, notes: 'PT Berkah Abadi' },
+        { id: 5, date: '2026-06-14', description: 'Electricity bill — June',           category: 'Operating Expenses', type: 'out', amount:  1250000, notes: '' },
+        { id: 6, date: '2026-06-12', description: 'Operational laptop purchase',       category: 'Assets',             type: 'out', amount: 12500000, notes: 'Asus VivoBook 14' },
+        { id: 7, date: '2026-06-10', description: 'Project payment PT Nusantara',     category: 'Other',              type: 'in',  amount:  8000000, notes: 'Term 2 of 3' },
+    ],
+
+    // ── Computed ──────────────────────────────────────────────────────────────
+    get dateRange() {
+        const today = new Date('2026-06-18');
+        const y = today.getFullYear();
+        const m = today.getMonth();
+        if (this.period === 'this_month') {
+            return { from: `${y}-${String(m+1).padStart(2,'0')}-01`, to: `${y}-${String(m+1).padStart(2,'0')}-31` };
+        }
+        if (this.period === 'last_month') {
+            const d = new Date(y, m - 1, 1);
+            return { from: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`, to: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-31` };
+        }
+        if (this.period === 'this_quarter') {
+            const q = Math.floor(m / 3);
+            const from = new Date(y, q * 3, 1);
+            const to   = new Date(y, q * 3 + 3, 0);
+            return { from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0] };
+        }
+        return { from: this.customFrom, to: this.customTo };
+    },
+
+    get periodLabel() {
+        const { from, to } = this.dateRange;
+        if (!from) return 'All periods';
+        const fmt = s => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (this.period === 'this_month' || this.period === 'last_month') {
+            return new Date(from + 'T00:00:00').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        }
+        return `${fmt(from)} – ${fmt(to)}`;
+    },
+
+    get filtered() {
+        const { from, to } = this.dateRange;
+        return this.allTransactions.filter(t => {
+            if (from && t.date < from) return false;
+            if (to   && t.date > to)   return false;
+            return true;
+        });
+    },
+
+    get totalIn()  { return this.filtered.filter(t => t.type === 'in').reduce((s, t) => s + t.amount, 0); },
+    get totalOut() { return this.filtered.filter(t => t.type === 'out').reduce((s, t) => s + t.amount, 0); },
+    get net()      { return this.totalIn - this.totalOut; },
+
+    get inByCategory() {
+        const map = {};
+        this.filtered.filter(t => t.type === 'in').forEach(t => {
+            if (!map[t.category]) map[t.category] = { category: t.category, items: [], total: 0 };
+            map[t.category].items.push(t);
+            map[t.category].total += t.amount;
+        });
+        return Object.values(map);
+    },
+
+    get outByCategory() {
+        const map = {};
+        this.filtered.filter(t => t.type === 'out').forEach(t => {
+            if (!map[t.category]) map[t.category] = { category: t.category, items: [], total: 0 };
+            map[t.category].items.push(t);
+            map[t.category].total += t.amount;
+        });
+        return Object.values(map);
+    },
+
+    get recapByCategory() {
+        const map = {};
+        this.filtered.forEach(t => {
+            if (!map[t.category]) map[t.category] = { category: t.category, items: [], totalIn: 0, totalOut: 0 };
+            map[t.category].items.push(t);
+            if (t.type === 'in')  map[t.category].totalIn  += t.amount;
+            if (t.type === 'out') map[t.category].totalOut += t.amount;
+        });
+        return Object.values(map);
+    },
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    formatRupiah(amount) {
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+    },
+    formatDate(str) {
+        if (!str) return '-';
+        return new Date(str + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    // ── Actions ───────────────────────────────────────────────────────────────
+    printReport() {
+        window.print();
+    },
+    exportNotice(format) {
+        this.toastMessage = `Export to ${format} will be available after backend integration.`;
+        this.showToast = true;
+        setTimeout(() => { this.showToast = false; }, 3500);
+    },
+}));
+
 Alpine.start();
