@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(composer *)",
+      "PowerShell(npx skills add Leonxlnx/taste-skill 2>&1)",
+      "PowerShell(git *)"
+    ]
+  }
+}
